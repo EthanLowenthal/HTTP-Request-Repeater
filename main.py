@@ -1,6 +1,6 @@
 from mitmproxy import proxy, options
-from mitmproxy.net.http.headers import Headers
-from mitmproxy.net.http.http1.assemble import assemble_request, assemble_response, assemble_request_head, assemble_response_head
+# from mitmproxy.net.http.headers import Headers
+from mitmproxy.net.http.http1.assemble import assemble_request, assemble_request_head, assemble_response_head #, assemble_response
 from mitmproxy.tools.dump import DumpMaster
 import tkinter as tk
 from tkinter import ttk
