@@ -12,7 +12,7 @@ class Addon:
 	def request(self, flow):
 		flow.dropped = False
 
-		if flow.request.host_header + flow.request.path == self.repeating:
+		if flow.request.url == self.repeating:
 			return
 
 		if self.intercept:

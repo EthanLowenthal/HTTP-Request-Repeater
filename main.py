@@ -1,5 +1,4 @@
 from mitmproxy import proxy, options
-# from mitmproxy.net.http.headers import Headers
 from mitmproxy.net.http.http1.assemble import assemble_request, assemble_request_head, assemble_response_head #, assemble_response
 from mitmproxy.tools.dump import DumpMaster
 import tkinter as tk
@@ -11,7 +10,6 @@ from threading import Thread, Lock
 import sys
 from repeater import Repeater
 from mitm import start_mitm, Addon
-
 
 class Window:
     def __init__(self, queue, lock, addon):
@@ -208,6 +206,8 @@ class Window:
     def send_to_repeater(self):
         request = self.history[self.history_list.curselection()[0]].request
         Repeater(self.window, request)
+        with self.lock:
+            self.addon.repeating = request.url
 
 
     def repeat(self):
@@ -221,13 +221,6 @@ class Window:
         requests.post(url, headers=self.make_repeating_headers(), data=self.make_repeating_data())
 
         self.addon.repeating = None
-
-    def make_repeating_headers(self):
-        pass
-
-    def make_repeating_data(self):
-        pass
-
 
 
 def start():
