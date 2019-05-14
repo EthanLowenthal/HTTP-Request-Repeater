@@ -3,6 +3,55 @@ import requests
 from tkinter import ttk
 from mitmproxy.net.http.headers import Headers
 from random_vals import RandomFromListValue, RandomRangeValue, StaticValue, RandomRegexValue
+import time
+from threading import Thread
+
+class Sender:
+	def __init__(self, repeater, times, delay):
+		self.repeater = repeater
+
+		self.times = times
+		self.delay = delay
+
+		if self.times == "": self.times = 1
+		if self.delay == "": self.delay = 0
+		self.delay = float(self.delay)
+
+		self.pause = False
+		self.stop = False
+
+
+	def run(self):
+		headers = self.repeater.compile_headers()
+		f = getattr(requests, self.repeater.request.method.lower())
+
+		if self.times is not None:
+			self.times = int(self.times)
+
+			for i in range(self.times):
+				while self.pause:
+					time.sleep(1)
+
+				if self.stop:
+					return
+
+				time.sleep(self.delay)
+
+				f(self.repeater.request.url, headers=headers, data=self.repeater.compile_body(),
+						 hooks={'response': self.repeater.on_response})
+
+		else:
+			while True:
+				while self.pause:
+					time.sleep(1)
+
+				if self.stop:
+					return
+
+				time.sleep(self.delay)
+
+				f(self.repeater.request.url, headers=headers, data=self.repeater.compile_body(),
+				  hooks={'response': self.repeater.on_response})
 
 class Repeater:
 	def __init__(self, window, request):
@@ -18,17 +67,89 @@ class Repeater:
 		repeater_notebook.add(body_frame, text='Body')
 		repeater_notebook.add(settings_frame, text='Settings')
 
-		compiled_request_frame = ttk.Labelframe(settings_frame, text='compiled request')
-		compiled_request_frame.pack()
+#        ------------------------------ SEND CONTROLS ------------------------------
 
-		self.compiled_request_veiwer = tk.Text(compiled_request_frame, state=tk.DISABLED)
-		self.compiled_request_veiwer.pack()
+		send_controls_label_frame = ttk.Labelframe(settings_frame, text='Controls')
+		send_controls_label_frame.pack(fill=tk.BOTH, side=tk.TOP, expand=1)
 
-		tk.Button(settings_frame, text='veiw sample request',command=self.compile_request).pack()
-		tk.Button(settings_frame, text='send one', command=lambda: self.send(times=1)).pack()
+		send_controls_frame = tk.Frame(send_controls_label_frame)
+		send_controls_frame.pack(fill=tk.BOTH, expand=1)
+
+		vcmd = (self.window.register(self.validate), '%P')
+		temp = tk.Frame(send_controls_frame)
+		temp.pack(anchor=tk.W)
+		tk.Label(temp, text='times:').pack(side=tk.LEFT)
+		self.n_times = tk.Entry(temp, width=4)
+		self.n_times.pack(side=tk.LEFT)
+		self.n_times.insert(tk.END, '1')
+		self.n_times.configure(validate="key", validatecommand=vcmd)
+
+		temp = tk.Frame(send_controls_frame)
+		temp.pack(anchor=tk.W)
+		tk.Label(temp, text='delay:').pack(side=tk.LEFT)
+		self.delay = tk.Entry(temp, width=4)
+		self.delay.pack(side=tk.LEFT)
+		self.delay.insert(tk.END, '0')
+		self.delay.configure(validate="key", validatecommand=vcmd)
+
+
+		temp = tk.Frame(send_controls_frame, pady=2)
+		temp.pack(anchor=tk.W)
+		self.send_infinite = tk.Button(temp, text='send infinite',
+				  command=lambda :self.send(delay=self.delay.get())
+				  )
+		self.send_finite = tk.Button(temp, text='send finite',
+				  command=lambda :self.send(times=self.n_times.get(), delay=self.delay.get())
+				  )
+		self.send_one = tk.Button(temp, text='send one', command=lambda: self.send(times=1))
+
+		self.send_infinite.pack(side=tk.LEFT)
+		self.send_finite.pack(side=tk.LEFT)
+		self.send_one.pack(side=tk.LEFT)
+
+		temp = tk.Frame(send_controls_frame, pady=2)
+		temp.pack(anchor=tk.W)
+		tk.Button(temp, text='sample request',command=self.compile_request).pack(side=tk.LEFT)
+		tk.Button(temp, text='clear responses', command=self.clear_responses).pack(side=tk.LEFT)
+
+		temp = tk.Frame(send_controls_frame, pady=2)
+		temp.pack(anchor=tk.W)
+
+		self.pause_button_text = tk.Variable()
+		self.pause_button_text.set('pause')
+		self.pause_button = tk.Button(temp, textvariable=self.pause_button_text, command=self.toggle_pause, state=tk.DISABLED)
+		self.stop_button = tk.Button(temp, text='stop', command=self.stop, state=tk.DISABLED)
+		self.pause_button.pack(side=tk.LEFT)
+		self.stop_button.pack(side=tk.LEFT)
+
+		self.pause_label = tk.Label(send_controls_frame, text='PAUSED')
+
+		compiled_request_frame = ttk.Labelframe(settings_frame, text='Compiled Request')
+		compiled_request_frame.pack(fill=tk.BOTH, side=tk.TOP, expand=1)
+
+#        ------------------------------ RESPONSES ------------------------------
+
+		self.responses_variable = tk.Variable()
+		self.responses_variable.set(['Nothing Sent'])
+		responses_list = tk.Listbox(settings_frame, listvariable=self.responses_variable)
+		responses_list.pack(fill=tk.X, side=tk.TOP, expand=1)
+
+		self.responses = {}
+
+#        ------------------------------ COMPILED REQUEST ------------------------------
+
+		self.compiled_request_veiwer_text = tk.Variable()
+		compiled_request_veiwer = tk.Label(compiled_request_frame, textvariable=self.compiled_request_veiwer_text,
+										   justify=tk.LEFT)
+		compiled_request_veiwer.pack(fill=tk.X, expand=1)
+		self.compiled_request_veiwer_text.set('No Reqest Yet')
+
+#        ------------------------------ HEADERS ------------------------------
 
 		self.headers_temp_frame = tk.Frame(self.headers_frame)
 		self.headers_temp_frame.pack()
+
+#        ------------------------------ BODY CONTROLS ------------------------------
 
 		controls_frame = ttk.Labelframe(body_frame, text='controls')
 		controls_frame.pack(side=tk.BOTTOM, fill=tk.X)
@@ -51,6 +172,8 @@ class Repeater:
 				command=lambda v='regex': self.add_custom_value_to_body(v)
 				).pack(side=tk.LEFT)
 
+#        ------------------------------ BODY TEXT ------------------------------
+
 		self.body_text = tk.Text(body_frame)
 		self.body_text.pack(fill=tk.BOTH, expand=1, side=tk.LEFT)
 
@@ -72,18 +195,75 @@ class Repeater:
 
 		self.body_text.delete('1.0', tk.END)
 
+#        ------------------------------ OTHER STUFF ------------------------------
+
 		self.make_headers_table(request)
 		self.body_text.insert(tk.END, request.text)
 
 		self.custom_headers = []
 
-	def send(self, times=None):
-		headers = self.compile_headers()
-		body = self.compile_body()
-		if times is not None:
-			for i in range(times):
-				if self.request.method == 'POST':
-					response = requests.post(self.request.url, headers=headers, data=body)
+		self.thread = None
+
+	def validate(self, new):
+		if new == "":
+			return True
+		try:
+			float(new)
+			return True
+		except ValueError:
+			return False
+
+	def clear_responses(self):
+		self.responses = {}
+		self.responses_variable.set(['No Request Yet'])
+
+	def on_response(self, response, *args, **kwargs):
+		if response.status_code in self.responses.keys():
+			self.responses[response.status_code] += 1
+
+		else:
+			self.responses[response.status_code] = 1
+
+		list = ["Status: Count"]
+		for (k, v) in self.responses.items():
+			list.append("{}: {}".format(k, v))
+
+		self.responses_variable.set(list)
+
+	def send(self, times=None, delay=0.0):
+		self.pause_button.configure(state=tk.NORMAL)
+		self.stop_button.configure(state=tk.NORMAL)
+
+		self.send_infinite.configure(state=tk.DISABLED)
+		self.send_finite.configure(state=tk.DISABLED)
+		self.send_one.configure(state=tk.DISABLED)
+
+		self.thread = Sender(self, times, delay)
+		Thread(target=self.thread.run).start()
+
+	def stop(self):
+		if self.thread is not None:
+			self.thread.stop = True
+		self.thread = None
+
+		self.pause_button.configure(state=tk.DISABLED)
+		self.stop_button.configure(state=tk.DISABLED)
+
+		self.send_infinite.configure(state=tk.NORMAL)
+		self.send_finite.configure(state=tk.NORMAL)
+		self.send_one.configure(state=tk.NORMAL)
+
+	def toggle_pause(self):
+		if self.thread is not None:
+			self.thread.pause = not self.thread.pause
+
+		if self.thread.pause:
+			self.pause_label.pack()
+			self.pause_button_text.set('resume')
+
+		else:
+			self.pause_label.pack_forget()
+			self.pause_button_text.set('pause')
 
 	def veiw_custom_val(self, evt, val=None):
 		for slave in self.custom_val_veiwer.pack_slaves():
@@ -181,9 +361,6 @@ class Repeater:
 		return dict(self.request.headers)
 
 	def compile_request(self):
-		self.compiled_request_veiwer.config(state=tk.NORMAL)
-		self.compiled_request_veiwer.delete('1.0', tk.END)
-
 		headers = ''
 		for (k, v) in self.compile_headers().items():
 			headers += k
@@ -191,10 +368,16 @@ class Repeater:
 			headers += v
 			headers += '\n'
 
-		self.compiled_request_veiwer.insert(tk.END, headers)
-		self.compiled_request_veiwer.insert(tk.END, '\n')
-		self.compiled_request_veiwer.insert(tk.END, self.compile_body())
-		self.compiled_request_veiwer.config(state=tk.DISABLED)
+		text = ''
+		text += self.request.method
+		text += ' '
+		text += self.request.url
+		text += '\n\n'
+		text += headers
+		text += '\n'
+		text += self.compile_body()
+
+		self.compiled_request_veiwer_text.set(text)
 
 	def make_headers_table(self, request):
 		self.headers_temp_frame.destroy()
