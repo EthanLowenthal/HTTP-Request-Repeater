@@ -2,7 +2,7 @@ import tkinter as tk
 import requests
 from tkinter import ttk
 from mitmproxy.net.http.headers import Headers
-from random_vals import RandomFromListValue, RandomRangeValue, StaticValue, RandomRegexValue
+from random_vals import RandomListValue, RandomRangeValue, StaticValue, RandomRegexValue
 import time
 from threading import Thread
 
@@ -19,7 +19,6 @@ class Sender:
 
 		self.pause = False
 		self.stop = False
-
 
 	def run(self):
 		headers = self.repeater.compile_headers()
@@ -52,6 +51,8 @@ class Sender:
 
 				f(self.repeater.request.url, headers=headers, data=self.repeater.compile_body(),
 				  hooks={'response': self.repeater.on_response})
+
+		self.repeater.stop()
 
 class Repeater:
 	def __init__(self, window, request):
@@ -129,10 +130,12 @@ class Repeater:
 
 #        ------------------------------ RESPONSES ------------------------------
 
-		self.responses_variable = tk.Variable()
-		self.responses_variable.set(['Nothing Sent'])
-		responses_list = tk.Listbox(settings_frame, listvariable=self.responses_variable)
-		responses_list.pack(fill=tk.X, side=tk.TOP, expand=1)
+		self.responses_list = tk.ttk.Treeview(settings_frame)
+		self.responses_list.pack(fill=tk.X, side=tk.TOP, expand=1)
+
+		self.responses_list["columns"] = ("#0", "#1")
+		self.responses_list.heading("#0", text="Status")
+		self.responses_list.heading("#1", text="Count")
 
 		self.responses = {}
 
@@ -224,11 +227,10 @@ class Repeater:
 		else:
 			self.responses[response.status_code] = 1
 
-		list = ["Status: Count"]
-		for (k, v) in self.responses.items():
-			list.append("{}: {}".format(k, v))
+		self.responses_list.delete(*self.responses_list.get_children())
 
-		self.responses_variable.set(list)
+		for (k, v) in self.responses.items():
+			self.responses_list.insert('', tk.END, text=k,values=(v))
 
 	def send(self, times=None, delay=0.0):
 		self.pause_button.configure(state=tk.NORMAL)
@@ -298,7 +300,7 @@ class Repeater:
 		elif val == 'list':
 			btn_text = tk.StringVar()
 			button = tk.Button(self.body_text, textvariable=btn_text)
-			value = RandomFromListValue(['a', 'b', 'c'], button, btn_text, self.custom_val_veiwer)
+			value = RandomListValue(['a', 'b', 'c'], button, btn_text, self.custom_val_veiwer)
 			button.configure(command=lambda v=value: self.veiw_custom_val(None, val=v))
 			btn_text.set('list')
 			self.custom_vals.append(value)

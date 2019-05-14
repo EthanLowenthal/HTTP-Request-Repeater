@@ -2,12 +2,26 @@ import tkinter as tk
 import random
 from exrex import getone
 
-class RandomFromListValue:
-	def __init__(self, list, btn, btn_txt, veiwer):
+class Value:
+	def __init__(self, btn, btn_txt, veiwer):
 		self.button = btn
 		self.btn_txt = btn_txt
 		self.veiwer = veiwer
 		self.frame = tk.Frame(self.veiwer)
+
+	def value(self):
+		raise NotImplementedError()
+
+	def display(self):
+		raise NotImplementedError()
+
+	def update(*args):
+		raise NotImplementedError()
+
+
+class RandomListValue(Value):
+	def __init__(self, list, btn, btn_txt, veiwer):
+		super().__init__(btn, btn_txt, veiwer)
 		self.list = list
 		self.entries = []
 
@@ -49,12 +63,9 @@ class RandomFromListValue:
 		return "Random List"
 
 
-class RandomRangeValue:
+class RandomRangeValue(Value):
 	def __init__(self, min, max, btn, btn_txt, veiwer):
-		self.button = btn
-		self.btn_txt = btn_txt
-		self.veiwer = veiwer
-		self.frame = tk.Frame(self.veiwer)
+		super().__init__(btn, btn_txt, veiwer)
 
 		self.min_entry = tk.Entry(self.frame)
 		self.min_entry.pack(side=tk.LEFT)
@@ -92,42 +103,10 @@ class RandomRangeValue:
 		return "Random Range"
 
 
-class StaticValue:
-	def __init__(self, val, btn, txt, veiwer):
-		self.btn_txt = txt
-		self.button = btn
-		self.veiwer = veiwer
-		self.frame = tk.Frame(self.veiwer)
-		self.entry = tk.Entry(self.frame)
-		self.entry.pack()
-		self.entry.bind('<KeyRelease>', self.update)
-		self.val = val
-
-	def value(self):
-		return str(self.val)
-
-	def set(self, val):
-		self.val = val
-
-	def update(self, evt):
-		self.val = self.entry.get()
-		self.btn_txt.set(self.val)
-
-	def display(self):
-		self.entry.delete(0, tk.END)
-		self.entry.insert(tk.END, self.val)
-		self.frame.pack()
-
-	def __str__(self):
-		return "Static Variable"
-
-
-class RandomRegexValue:
+class RandomRegexValue(Value):
 	def __init__(self, val, btn, btn_txt, veiwer):
-		self.button = btn
-		self.btn_txt = btn_txt
-		self.veiwer = veiwer
-		self.frame = tk.Frame(self.veiwer)
+		super().__init__(btn, btn_txt, veiwer)
+
 		self.entry = tk.Entry(self.frame)
 		self.entry.pack()
 		self.entry.bind('<KeyRelease>', self.update)
@@ -150,3 +129,31 @@ class RandomRegexValue:
 
 	def __str__(self):
 		return "Random Regex"
+
+
+class StaticValue(Value):
+	def __init__(self, val, btn, btn_txt, veiwer):
+		super().__init__(btn, btn_txt, veiwer)
+
+		self.entry = tk.Entry(self.frame)
+		self.entry.pack()
+		self.entry.bind('<KeyRelease>', self.update)
+		self.val = val
+
+	def value(self):
+		return str(self.val)
+
+	def set(self, val):
+		self.val = val
+
+	def update(self, evt):
+		self.val = self.entry.get()
+		self.btn_txt.set(self.val)
+
+	def display(self):
+		self.entry.delete(0, tk.END)
+		self.entry.insert(tk.END, self.val)
+		self.frame.pack()
+
+	def __str__(self):
+		return "Static Variable"
