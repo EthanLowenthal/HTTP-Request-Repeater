@@ -20,15 +20,18 @@ class Sender:
 		self.pause = False
 		self.stop = False
 
-	def run(self):
+	def run(self, max_threads=50):
 		headers = self.repeater.compile_headers()
 		f = getattr(requests, self.repeater.request.method.lower())
+		threads = []
 
 		if self.times is not None:
 			self.times = int(self.times)
 
 			for i in range(self.times):
-				while self.pause:
+				threads = list([t for t in threads if t.isAlive()])
+
+				while self.pause or len(threads) > max_threads:
 					time.sleep(1)
 
 				if self.stop:
@@ -36,12 +39,24 @@ class Sender:
 
 				time.sleep(self.delay)
 
-				f(self.repeater.request.url, headers=headers, data=self.repeater.compile_body(),
-						 hooks={'response': self.repeater.on_response})
+				t = Thread(target=f,
+						   args=(self.repeater.request.url,),
+						   kwargs={
+							'headers': headers,
+							'data': self.repeater.compile_body(),
+							'hooks': {'response': self.repeater.on_response},
+							'verify': False
+				})
+				t.start()
+				threads.append(t)
+
+				self.repeater.window.winfo_toplevel().title("Repeater ({} threads)".format(len(threads)))
 
 		else:
 			while True:
-				while self.pause:
+				threads = list([t for t in threads if t.isAlive()])
+
+				while self.pause or len(threads) > max_threads:
 					time.sleep(1)
 
 				if self.stop:
@@ -49,14 +64,27 @@ class Sender:
 
 				time.sleep(self.delay)
 
-				f(self.repeater.request.url, headers=headers, data=self.repeater.compile_body(),
-				  hooks={'response': self.repeater.on_response})
+				t = Thread(target=f,
+						   args=(self.repeater.request.url,),
+						   kwargs={
+							'headers': headers,
+							'data': self.repeater.compile_body(),
+							'hooks': {'response': self.repeater.on_response},
+							'verify': False
+				})
+				t.start()
+				threads.append(t)
+
+				self.repeater.window.winfo_toplevel().title("Repeater ({} threads)".format(len(threads)))
 
 		self.repeater.stop()
+		self.repeater.window.winfo_toplevel().title("Repeater")
+
 
 class Repeater:
 	def __init__(self, window, request):
 		self.window = tk.Toplevel(window)
+		self.window.winfo_toplevel().title("Repeater")
 		self.request = request
 
 		repeater_notebook = ttk.Notebook(self.window)
@@ -218,7 +246,7 @@ class Repeater:
 
 	def clear_responses(self):
 		self.responses = {}
-		self.responses_variable.set(['No Request Yet'])
+		self.responses_list.delete(*self.responses_list.get_children())
 
 	def on_response(self, response, *args, **kwargs):
 		if response.status_code in self.responses.keys():
@@ -227,10 +255,14 @@ class Repeater:
 		else:
 			self.responses[response.status_code] = 1
 
-		self.responses_list.delete(*self.responses_list.get_children())
+		while len(self.responses_list.get_children()) < len(self.responses.keys()):
+			self.responses_list.insert('', tk.END, text='', values=(''))
 
-		for (k, v) in self.responses.items():
-			self.responses_list.insert('', tk.END, text=k,values=(v))
+		items = self.responses_list.get_children()
+
+		itm = list(self.responses.items())
+		for i, it in enumerate(items):
+			self.responses_list.item(it, text=itm[i][0], values=(itm[i][1]))
 
 	def send(self, times=None, delay=0.0):
 		self.pause_button.configure(state=tk.NORMAL)

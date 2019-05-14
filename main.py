@@ -15,7 +15,7 @@ class Window:
     def __init__(self, queue, lock, addon):
         self.window = tk.Tk()
         self.window.geometry("800x600")
-        self.window.title("Heccin' Tool")
+        self.window.title("Repeater")
 
         notebook = ttk.Notebook(self.window)
         notebook.pack(fill=tk.BOTH, expand=1)
